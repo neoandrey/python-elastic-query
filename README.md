@@ -52,3 +52,20 @@ Once you have Ansible installed, using this module is as easy as:
         name: httpd
         state: restarted
 ```
+It is important to note that this module runs locally on the Ansible server and not remotely on hosts specified in the ansible inventory. However, the result of module can be passed to others tasks a play.
+
+## Parameters
+1. **index_name_prefix**: This *string* parameter specifies the name of the index in elastic search that should be queried. It is defined as a prefix to cater for indexes that may change daily and require the current date to be suffixed to them in order to reference the latest index.
+2. **full_date_format**: This *string* parameter  is used to specify the full date format to be used to compare the current date and time of the ansible server with the date\time field stored in Elastic search. The default value is '%Y-%m-%d %H:%M:%SZ'
+3. **date_format**: This *string* parameter  is used to specify the date format to be used as a suffix to be appended to the value of the **index_name_prefix** parameter. It allows ansible identify and query the most recent Elastic index. It would only be used if the value of the **is_date_suffixed** parameter is set to True or 1 .Otherwise, it is ignored. The default value is '%Y-%m-%d %H:%M:%SZ'
+4. **elastic_host**: This *string* parameter specifies the resolvable name of IP address of the Elasticsearch cluster. The elastic host should be accessible to the ansible server either directly or through the system or environment proxy. The default value is localh1ost.
+5. **elastic_port**: This *integer* parameter specifies the port used to access the Elastic cluster. The default value  is 9200
+6. **search_size**:  This *integer* parameter specifies the number of matching rows to be returned by the query module.	 The  default value is 1000 but can generally go up to 10,000.
+7. **use_proxy**: This *boolean* parameter determines if a system or environment proxy should be used to access the  Elasticsearch cluster.  This parameter is False by default.
+8. **past_minutes_to_check**: This *integer* parameter specifies how far back from the  current date and time on the Ansible server should a search filter records from the Elasticsearch cluster if the **is_time_dependent** parameter is set to True. Otherwise, it is ignored. The default value is  60.
+9. **is_date_suffixed**: This *boolean* paramter determines if the **index_name_prefix** is suffixed with the current date in the format specified by the **date_format** parameter. The default value of this parameter is True.
+10. **is_run_check**: This *boolean* parameter is used to run the module without filtering results in order to test if the ElasticSearch cluster is accessible from the  Ansible server. The default value of this parameter is False.
+11. **search_query_map**: dict(type='dict', required=True)
+        ,field_comparison_map  = dict(type='dict', required=True)
+	,search_field_map      = dict(type='dict', required=True)
+ 	,is_time_dependent     = dict(type='bool', required=True)  
