@@ -81,7 +81,8 @@ It is important to note that this module runs locally on the Ansible server and 
 
 The following section of the play above stores the output of the module in the *result* variable. It then iterates through the  
 results (result.meta) and adds the trans_source property each item as a host in the 'filtered_server' group.Thie group can then be used in subsequent tasks e.q. restart apache http server on each filtered server
-``    register: result
+```
+     register: result
    - add_host:
       groups: filtered_servers
       hostname: "{{ item['trans_source'] }}"
