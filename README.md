@@ -65,7 +65,16 @@ It is important to note that this module runs locally on the Ansible server and 
 8. **past_minutes_to_check**: This *integer* parameter specifies how far back from the  current date and time on the Ansible server should a search filter records from the Elasticsearch cluster if the **is_time_dependent** parameter is set to True. Otherwise, it is ignored. The default value is  60.
 9. **is_date_suffixed**: This *boolean* paramter determines if the **index_name_prefix** is suffixed with the current date in the format specified by the **date_format** parameter. The default value of this parameter is True.
 10. **is_run_check**: This *boolean* parameter is used to run the module without filtering results in order to test if the ElasticSearch cluster is accessible from the  Ansible server. The default value of this parameter is False.
-11. **search_query_map**: dict(type='dict', required=True)
-        ,field_comparison_map  = dict(type='dict', required=True)
-	,search_field_map      = dict(type='dict', required=True)
- 	,is_time_dependent     = dict(type='bool', required=True)  
+11. **search_query_map**: This *dictionary* or hashmap parameter specifies the fields of the Elastic index that should be filtered. The values of each of the fields specified would be used to filter the data and produce the desired results
+12. **field_comparison_map**:  This *dictionary* or hashmap parameter is used to specify how each field in the **search_query_map** parameter should be compared with the fields in of the Elasticsearch index. Posible values are:
+```
+ - 'eq': a == b
+ - 'ne': a!= b
+ - 'gt': a > b
+ - 'ge': a > b
+ - 'le': a < b
+ - 'like': a in b
+ - 'notlike': a not in b
+ ```
+ 13. **search_field_map**: This *dictionary* or hashmap parameter specifies fields of the Elasticsearch index that should be returned from the query and the keys each field should be returned as.From the [Elasticsearch docs](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html), fields may be nested and to cater for this, the dot(.) notation is used e.g. 'component': 'object.source.component'. 
+ 14. **is_time_dependent**: This *boolean* parameter is used to instruct the module to search as far back as specified by the *past_minutes_to_check* parameter. The default value is  True. 
