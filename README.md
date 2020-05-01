@@ -52,6 +52,7 @@ Once you have Ansible installed, using this module is as easy as:
         name: httpd
         state: restarted
 ```
+5.  Running the playbook created with the command ```ansible-playbook  saved_elastic_query_test.yml```
 It is important to note that this module runs locally on the Ansible server and not remotely on hosts specified in the ansible inventory. However, the result of module can be passed to others tasks a play.
 
 ## Parameters
