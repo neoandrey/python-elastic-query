@@ -78,3 +78,19 @@ It is important to note that this module runs locally on the Ansible server and 
  ```
  13. **search_field_map**: This *dictionary* or hashmap parameter specifies fields of the Elasticsearch index that should be returned from the query and the keys each field should be returned as.From the [Elasticsearch docs](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html), fields may be nested and to cater for this, the dot(.) notation is used e.g. 'component': 'object.source.component'. 
  14. **is_time_dependent**: This *boolean* parameter is used to instruct the module to search as far back as specified by the *past_minutes_to_check* parameter. The default value is  True. 
+
+The following section of the play above stores the output of the module in the *result* variable. It then iterates through the  
+results (result.meta) and adds the trans_source property each item as a host in the 'filtered_server' group.Thie group can then be used in subsequent tasks e.q. restart apache http server on each filtered server
+``    register: result
+   - add_host:
+      groups: filtered_servers
+      hostname: "{{ item['trans_source'] }}"
+     with_items: "{{ result.meta }}"
+   - debug: var=groups.filtered_servers
+- hosts: filterd_servers
+  tasks:
+   - name: Restart Apache HTTP on  filtered servers 
+     service:
+        name: httpd
+        state: restarted
+```
