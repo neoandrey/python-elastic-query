@@ -45,7 +45,7 @@ Once you have Ansible installed, using this module is as easy as:
       hostname: "{{ item['trans_source'] }}"
      with_items: "{{ result.meta }}"
    - debug: var=groups.filtered_servers
-- hosts: filterd_servers
+- hosts: filtered_servers
   tasks:
    - name: Restart Apache HTTP on  filtered servers 
      service:
