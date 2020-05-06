@@ -23,7 +23,7 @@ description:
 options:
     name:
         description:
-            - A simple test would query the provided elastic search instance and display the results
+            - This is the message to send to the test module
         required: true
     new:
         description:
@@ -34,7 +34,7 @@ extends_documentation_fragment:
     - elasticsearch
 
 author:
-    - Bolaji Aina(neoandrey@gmail.com)
+    - Mobolaji Aina(neoandrey@gmail.com)
 '''
 EXAMPLES = '''
 - hosts: localhost
@@ -42,42 +42,41 @@ EXAMPLES = '''
    - name: test
      elastic_query:
        is_run_check: 0
-       index_name_prefix: august_transactions
-       full_date_format: '%Y-%m-%d %H:%M:%SZ'
+       index_name_prefix: 'kube-events-'
+       full_date_format: '%Y-%m-%dT%H:%M:%S'
        date_format: '%Y.%m.%d'
-       elastic_host: 'localhost'
+       elastic_host: '172.38.1.126'
        elastic_port: 9200
-       search_size: 1000
-       use_proxy: 0
+       search_size: 10000
+       use_proxy: 1
        past_minutes_to_check: 60
-       is_date_suffixed: 0
-       is_time_dependent: 0
+       is_date_suffixed: 1
+       is_time_dependent: 1
        search_query_map:
-        'request_date': '2018-08-02'
+        'reason': 'Evicted'
        field_comparison_map:
-        'request_date': 'like'
+        'reason': 'eq'
        search_field_map:
-        'request_date': 'request_date'
-        'trans_source': 'trans_source'
-        'tran_value': 'tran_value'
-        'tran_value_received': 'tran_value_received'
-        'amount_settled': 'amount_settled'
-        'amount_settled_2': 'amount_settled_2'
-        'terminal_holder': 'terminal_holder'
-        'trans_message': 'trans_message'
-        'tran_req_code': 'tran_req_code'
-        'tran_rsp_code': 'tran_rsp_code'
+        'ip': 'host'
+        'time': '@timestamp'
+        'reason': 'object.reason'
+        'host': 'object.source.host'
+        'component': 'object.source.component'
+        'message': 'object.message'
+        'type': 'object.type'
+        'firstTimestamp': 'object.firstTimestamp'
+        'lastTimestamp': 'object.lastTimestamp'
      register: result
    - add_host:
       groups: filtered_servers
-      hostname: "{{ item['trans_source'] }}"
+      hostname: "{{ item['host'] }}"
      with_items: "{{ result.meta }}"
    - debug: var=groups.filtered_servers
 - hosts: filterd_servers
   tasks:
-   - name: Restart Apache HTTP on  filtered servers 
+   - name: Restart Kubelet Service on Faulting Nodes
      service:
-        name: httpd
+        name: kubelet
         state: restarted
 '''
 #-*- coding: utf-8 -*-
@@ -92,9 +91,13 @@ import os
 import os.path
 os.path.dirname(__file__)
 
+HAS_LIB             = False
+LIB_DATE_PARSER_ERR = None
+QUERY_ERR           = ''
+
 def filter_event_data(a,b, comparison):
-    a = a.lower() 
-    b = b.lower() 
+    a = a.lower()
+    b = b.lower()
     comparison = comparison.lower().strip()
     if  comparison == 'eq':
         return  a==b
@@ -110,7 +113,7 @@ def filter_event_data(a,b, comparison):
         return  a in b
     elif comparison == 'notlike':
         return  a not in b
-    
+
 def get_elastic_field(key,event_source):
     key_properties  = []
     key_properties = key.split('.')
@@ -122,9 +125,11 @@ def get_elastic_field(key,event_source):
            temp = temp[sub_key]
        #print("key: k, value: {}".format(key,temp))
        return temp
-        
+
 def run_elastic_query(src_options):
-        try: 
+        result = None
+        url    = None
+        try:
             full_date_format     = src_options['full_date_format']
             date_format          = src_options['date_format']
             elastic_host         = src_options['elastic_host']
@@ -133,7 +138,7 @@ def run_elastic_query(src_options):
             search_size          = src_options['search_size']
             use_proxy            = src_options['use_proxy']
             past_minutes_to_check= src_options['past_minutes_to_check']
-            check_time           =  datetime.now() - timedelta(minutes=past_minutes_to_check) 
+            check_time           =  datetime.now() - timedelta(minutes=past_minutes_to_check)
             index_name           = ""
             today_in_full        = datetime.now().strftime(full_date_format)
             today                = datetime.now().strftime(date_format)
@@ -143,6 +148,7 @@ def run_elastic_query(src_options):
             is_run_check         = src_options['is_run_check']
             search_field_map     = src_options['search_field_map']
             is_time_dependent    = src_options['is_time_dependent']
+            #print('parameters processed')
             if is_time_dependent:
                 url_data = """{
                 "query":{"match_all" : {}},
@@ -158,7 +164,7 @@ def run_elastic_query(src_options):
                return  {'error':'Each field in search_query_map must have a corresponding field_comparison_map entry'}
             for k,v in  search_query_map.items():
                 if field_comparison_map[k] is None:
-                    return  {'error':'Each field in search_query_map must have a corresponding field_comparison_map entry'}                
+                    return  {'error':'Each field in search_query_map must have a corresponding field_comparison_map entry'}
             if is_date_suffixed:
                     index_name=index_name_prefix+today
             else:
@@ -166,8 +172,10 @@ def run_elastic_query(src_options):
             headers              = {'Content-type': 'application/json'}
             base_url             = "http://"+elastic_host+":"+str(elastic_port)+"/"+index_name+"/_search?size="
             url                  = base_url+str(search_size)
+            #print("url:{} ".format(url))
             f                    = open_url(url, headers=headers, data=url_data, use_proxy=use_proxy)
             result               = json.loads(f.read())
+            #print("result: {}".format(result))
             elastic_data         = result['hits']['hits']
             event_filter         = {}
             json_response        = {}
@@ -190,7 +198,7 @@ def run_elastic_query(src_options):
                         elif k.lower() == "time":
                             event_time     = datetime.strptime(record_event['time'].replace('T',' ').split('.')[0], full_date_format)
                             threshold_time = v
-                            diff = event_time.replace(tzinfo=None)  - v.replace(tzinfo=None) 
+                            diff = event_time.replace(tzinfo=None)  - v.replace(tzinfo=None)
                             if (not str(diff).startswith('-')) and diff.seconds >=0:
                                match_count= match_count+1
                     if match_count == len(event_filter):
@@ -200,9 +208,10 @@ def run_elastic_query(src_options):
                 json_response = json.dumps(matching_records)
                 return  json_response
             else:
-                return result
+                return json.dumps({'check': 'Successful','query_url':url, 'url_response': result})
         except:
-           return  {'error':traceback.format_exc()}
+           stackTrace = traceback.format_exc()
+           return  json.dumps({'error_message': stackTrace,'query_url':url, 'url_response': result})
 def run_module():
     # define available arguments/parameters a user can pass to the module
     #module_args = dict(
@@ -210,21 +219,21 @@ def run_module():
     #    new=dict(type='bool', required=False, default=False)
     #)
     module_args = dict(
-	index_name_prefix      = dict(type='str',  default='kube-events-')
-	,full_date_format      = dict(type='str',  default='%Y-%m-%d %H:%M:%SZ')
-	,date_format           = dict(type='str',  default='%Y.%m.%d')
-	,elastic_host 	       = dict(type='str',  default='172.38.1.126')
-	,elastic_port          = dict(type='int',  default=9200)
-	,search_size	       = dict(type='int',  default=1000)
-	,use_proxy	       = dict(type='bool', default=False)
-	,past_minutes_to_check = dict(type='int',  default=60)
-	,is_date_suffixed      = dict(type='bool', default=True)
+        index_name_prefix      = dict(type='str',  default='kube-events-')
+        ,full_date_format      = dict(type='str',  default='%Y-%m-%d %H:%M:%SZ')
+        ,date_format           = dict(type='str',  default='%Y.%m.%d')
+        ,elastic_host          = dict(type='str',  default='localhost')
+        ,elastic_port          = dict(type='int',  default=9200)
+        ,search_size           = dict(type='int',  default=1000)
+        ,use_proxy             = dict(type='bool', default=False)
+        ,past_minutes_to_check = dict(type='int',  default=60)
+        ,is_date_suffixed      = dict(type='bool', default=True)
         ,is_run_check          = dict(type='bool', default=False)
-	,search_query_map      = dict(type='dict', required=True)
+        ,search_query_map      = dict(type='dict', required=True)
         ,field_comparison_map  = dict(type='dict', required=True)
-	,search_field_map      = dict(type='dict', required=True)
- 	,is_time_dependent     = dict(type='bool', required=True)  
-    )			
+        ,search_field_map      = dict(type='dict', required=True)
+        ,is_time_dependent     = dict(type='bool', required=True)
+    )
     # seed the result dict in the object
     # we primarily care about changed and state
     # change is if this module effectively modified the target
@@ -232,11 +241,11 @@ def run_module():
     # for consumption, for example, in a subsequent task
     #print('Running module with parameters:{} '.format(module_args))
     result = dict(
-        changed		=False,
+        changed         =False,
         original_message='',
-        message		='',
-        meta  		={},
-        error     	={}
+        message         ='',
+        meta            ={},
+        error           ={}
     )
 
     # the AnsibleModule object will be our abstraction working with Ansible
